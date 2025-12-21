@@ -261,9 +261,8 @@ def demo_workflow():
     logger.info(f"已选择输入文件: {input_file_path}")
     print(f"已选择输入文件: {input_file_path}")
     df = pd.read_excel(input_file_path)
-    company_names = df['工商全称'].tolist()
+    company_names = df['工商全称'].dropna().tolist()
     print(f'公司列表共 {len(company_names)} 家')
-    
 
     # 网站URL示例（使用百度作为演示）
     target_url = "https://xunkebao.baidu.com"
@@ -338,24 +337,44 @@ def demo_workflow():
             search_btn.click()
             # 3-2. 等待搜索结果加载
             time.sleep(3)
+
             # 3-3. 截图记录当前状态, 点开公司详情页
+            search_res_num = new_crawler.driver.find_element(By.CSS_SELECTOR,
+                                                             'div.middle-bar > div.info > span:nth-child(1) > em')
+            if search_res_num.text == '0':
+                continue
             # new_crawler.take_screenshot(f"static/complete_example/{company_name.replace(' ','_')}.png")
-            company_btn = new_crawler.driver.find_element(By.CSS_SELECTOR, "h6.company-name")
-            company_btn.click()
-            time.sleep(2)
+            company_btns = new_crawler.driver.find_elements(By.CSS_SELECTOR, "h6.company-name")
+            is_find_btn = 0
+            for btn in company_btns:
+                if btn.text.strip() == company_name:
+                    is_find_btn = 1
+                    btn.click()
+                    time.sleep(2)
+                    break
+            if is_find_btn == 0:
+                continue
+
             # 3-3 点击公司详情页的【立即查看】按钮
             check_btns = new_crawler.driver.find_elements(By.CSS_SELECTOR, "div.check > button")
             for btn in check_btns:
-                # 滑动到对应按钮可见
-                new_crawler.driver.execute_script("arguments[0].scrollIntoView(false);", btn)
-                time.sleep(0.3)
-                # 确保按钮可点击，再点击
-                WebDriverWait(new_crawler.driver, 2).until( EC.element_to_be_clickable(btn) )
-                btn.click()
+                if btn.text.strip() == "立即查看":
+                    # 滑动到对应按钮可见
+                    new_crawler.driver.execute_script("arguments[0].scrollIntoView(false);", btn)
+                    time.sleep(1)
+                    # 确保按钮可点击，再点击
+                    WebDriverWait(new_crawler.driver, 2).until(EC.element_to_be_clickable(btn))
+                    time.sleep(1)
+                    btn.click()
+                break
+            while True:
                 time.sleep(2)
-                if new_crawler.driver.find_element(By.CSS_SELECTOR, "button.el-dialog__headerbtn"):
-                    logger.info(f'点击【关闭】按钮成功，但无法顺利展示，提前跳出爬取逻辑')
-                    return    
+                check_btns = new_crawler.driver.find_elements(By.CSS_SELECTOR, "div.check > button")
+                if check_btns[0].text == "空错号检测":
+                    break
+                    # if new_crawler.driver.find_element(By.CSS_SELECTOR, "button.el-dialog__headerbtn"):
+                    #     logger.info(f'点击【关闭】按钮成功，但无法顺利展示，提前跳出爬取逻辑')
+
             # 3-4. 保存网页源代码，解析公司联系信息
             page_source = new_crawler.driver.page_source
             soup = BeautifulSoup(page_source, "html.parser")
