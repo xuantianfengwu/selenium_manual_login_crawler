@@ -351,7 +351,8 @@ def demo_workflow():
         company_btns = new_crawler.driver.find_elements(By.CSS_SELECTOR, "h6.company-name")
         is_find_btn = 0
         for btn in company_btns:
-            if btn.text.strip() == company_name:
+            dealed_company_name = company_name.replace('（','(').replace('）',')')
+            if btn.text.strip() == company_name or btn.text.strip() == dealed_company_name:
                 is_find_btn = 1
                 btn.click()
                 break
