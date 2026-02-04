@@ -326,8 +326,6 @@ def demo_workflow():
 
     # 3. 顺序遍历爬取
     for i, company_name in enumerate(company_names):
-        if i<815:
-            continue
         if company_name in existed_company_names:
             logger.info(f'公司 {company_name} 已存在，跳过')
             continue
@@ -342,11 +340,18 @@ def demo_workflow():
         # 3-2. 等待搜索结果加载
         time.sleep(3)
 
-        # 3-3. 截图记录当前状态, 点开公司详情页
+        # 搜索结果为0，直接跳过并爬取下一个
         search_res_num = new_crawler.driver.find_element(By.CSS_SELECTOR,
                                                          'div.middle-bar > div.info > span:nth-child(1) > em')
         if search_res_num.text == '0':
             continue
+        # 如果没有联系方式，直接跳过并爬取下一个
+        contact_num_items = new_crawler.driver.find_elements(By.CSS_SELECTOR,'div.contact > span')
+        contact_nums = [int(i.text) for i in contact_num_items]
+        if len(contact_nums)==4 and sum(contact_nums)==0:
+            continue
+
+        # 3-3. 截图记录当前状态, 点开公司详情页
         # new_crawler.take_screenshot(f"static/complete_example/{company_name.replace(' ','_')}.png")
         company_btns = new_crawler.driver.find_elements(By.CSS_SELECTOR, "h6.company-name")
         is_find_btn = 0
