@@ -321,7 +321,7 @@ def demo_workflow():
         for tab in ('手机','座机','邮箱','QQ'):
             tmp_df = pd.read_excel(output_file_path, sheet_name=tab, header=None)
             if len(tmp_df)>0:
-                existed_company_names = existed_company_names | ([v.split('|')[0] for v in tmp_df[0]])
+                existed_company_names = existed_company_names | set([v.split('|')[0] for v in tmp_df[0]])
         logger.info(f'已存在 {len(existed_company_names)} 家公司')
 
     # 3. 顺序遍历爬取
