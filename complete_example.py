@@ -318,7 +318,8 @@ def demo_workflow():
     else:
         logger.info('已发现产出文件，将直接读取')
         existed_company_names = set()
-        for tab in ('手机','座机','邮箱','QQ'):
+        # for tab in ('手机','座机','邮箱','QQ'):
+        for tab in ('手机',):
             tmp_df = pd.read_excel(output_file_path, sheet_name=tab, header=None)
             if len(tmp_df)>0:
                 existed_company_names = existed_company_names | set([v.split('|')[0] for v in tmp_df[0]])
@@ -326,6 +327,7 @@ def demo_workflow():
 
     # 3. 顺序遍历爬取
     for i, company_name in enumerate(company_names):
+        # if i<246: continue
         if company_name in existed_company_names:
             logger.info(f'公司 {company_name} 已存在，跳过')
             continue
@@ -341,8 +343,7 @@ def demo_workflow():
         time.sleep(3)
 
         # 搜索结果为0，直接跳过并爬取下一个
-        search_res_num = new_crawler.driver.find_element(By.CSS_SELECTOR,
-                                                         'div.middle-bar > div.info > span:nth-child(1) > em')
+        search_res_num = new_crawler.driver.find_element(By.CSS_SELECTOR,'div.middle-bar > div.info > span:nth-child(1) > em')
         if search_res_num.text == '0':
             continue
         # 如果没有联系方式，直接跳过并爬取下一个
@@ -361,36 +362,46 @@ def demo_workflow():
                 is_find_btn = 1
                 btn.click()
                 break
-        if is_find_btn == 0:
+        if is_find_btn == 0: # 没有搜索到这个公司
             continue
         time.sleep(2)
 
         # 3-3 点击公司详情页的【立即查看】按钮
         check_btns = new_crawler.driver.find_elements(By.CSS_SELECTOR, "div.check > button")
-        for btn in check_btns:
-            if btn.text.strip() == "立即查看":
-                # 滑动到对应按钮可见
-                new_crawler.driver.execute_script("arguments[0].scrollIntoView(false);", btn)
-                time.sleep(1)
-                # 确保按钮可点击，再点击
-                WebDriverWait(new_crawler.driver, 2).until(EC.element_to_be_clickable(btn))
-                btn.click()
-            break
-        time.sleep(2)
-        # 确定点击生效
-        while True:
+        contact_cards = new_crawler.driver.find_elements(By.CSS_SELECTOR, "div.contact-item > div > div.p")
+        # 等待加载
+        while len(check_btns)==0 and len(contact_cards)==0:
             time.sleep(2)
             check_btns = new_crawler.driver.find_elements(By.CSS_SELECTOR, "div.check > button")
-            if len(check_btns)==0: # 找不到按钮，有时解锁后也会出现这个情况
-                contact_div = new_crawler.driver.find_element(By.CSS_SELECTOR, "div.contact-item > div > div.p")
-                contact_text = contact_div.text.strip()
-                if len(contact_text)>0 and '*' not in contact_text:
-                    break
-                continue
-            elif check_btns[0].text == "空错号检测":
-                break
-            else:
-                continue
+            contact_cards = new_crawler.driver.find_elements(By.CSS_SELECTOR, "div.contact-item > div > div.p")
+        # 联系方式直接可见
+        first_contact_text = contact_cards[0].text.strip()
+        if len(contact_cards)>0 and len(first_contact_text)>0 and '*' not in first_contact_text:
+            pass
+        # 需要点击“立即查看”按钮
+        elif len(check_btns)>0 and check_btns[0].text.strip() == "立即查看":
+            # 滑动到对应按钮可见
+            new_crawler.driver.execute_script("arguments[0].scrollIntoView(false);", btn)
+            time.sleep(1)
+            # 确保按钮可点击，再点击
+            WebDriverWait(new_crawler.driver, 2).until(EC.element_to_be_clickable(btn))
+            btn.click()
+            time.sleep(2)
+            # 确定点击后加载完成
+            check_btns = new_crawler.driver.find_elements(By.CSS_SELECTOR, "div.check > button")
+            while len(check_btns) == 0:
+                time.sleep(2)
+                check_btns = new_crawler.driver.find_elements(By.CSS_SELECTOR, "div.check > button")
+            # 确定联系方式可见
+            while check_btns[0].text != "空错号检测":
+                time.sleep(2)
+                check_btns = new_crawler.driver.find_elements(By.CSS_SELECTOR, "div.check > button")
+        # 未知场景, 报错并hold
+        else:
+            new_crawler.driver.execute_script("alert('未知场景');")
+            input('continue crawling')
+            continue
+        time.sleep(1)
 
         # 3-4. 保存网页源代码，解析公司联系信息
         page_source = new_crawler.driver.page_source
