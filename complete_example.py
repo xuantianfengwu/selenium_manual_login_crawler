@@ -230,12 +230,10 @@ class AdvancedCrawler:
         except Exception as e:
             logger.error(f"关闭浏览器失败: {str(e)}")
 
-def demo_workflow():
-    """演示完整的爬虫工作流程"""
+def get_company_names(output_file_path = 'static/complete_example/output.xlsx'):
     # --------------------------
     # 1. 文件选择阶段
     # --------------------------
-    logger.info("===== 开始演示完整爬虫流程 =====")
     logger.info("\n----- 文件选择阶段 -----")
     # 创建tkinter窗口（隐藏）
     root = tk.Tk()
@@ -249,25 +247,49 @@ def demo_workflow():
     if not input_file_path:
         logger.error("用户未选择输入文件，程序终止")
         messagebox.showerror("错误", "未选择输入文件，程序终止")
-        return    
-    # 验证文件是否存在且为.xlsx格式
+        return
+        # 验证文件是否存在且为.xlsx格式
     if not os.path.exists(input_file_path):
         logger.error(f"所选文件不存在: {input_file_path}")
         messagebox.showerror("错误", f"所选文件不存在: {input_file_path}")
-        return    
+        return
     if not input_file_path.endswith('.xlsx'):
         logger.error(f"所选文件不是有效的Excel文件(.xlsx): {input_file_path}")
         messagebox.showerror("错误", f"所选文件不是有效的Excel文件(.xlsx): {input_file_path}")
-        return   
-    # 1. 读取公司列表 
+        return
+        # 1. 读取公司列表
     logger.info(f"已选择输入文件: {input_file_path}")
     print(f"已选择输入文件: {input_file_path}")
     df = pd.read_excel(input_file_path)
     company_names = df['工商全称'].dropna().tolist()
     print(f'公司列表共 {len(company_names)} 家')
 
+    return company_names
+
+def launch_xunkebao_and_crawl(company_names, output_file_path):
     # 网站URL示例（使用百度作为演示）
     target_url = "https://xunkebao.baidu.com"
+
+    print(f'产出文件路径: {output_file_path}')
+    if not os.path.exists(output_file_path):
+        logger.info('未发现产出文件，将新建')
+        wb = Workbook()
+        ws_phone = wb.active
+        ws_phone.title = "手机"
+        ws_tel = wb.create_sheet("座机")  # 创建第二个sheet "邮箱"
+        ws_email = wb.create_sheet("邮箱")  # 创建第二个sheet "邮箱"
+        ws_qq = wb.create_sheet("QQ")  # 创建第三个sheet "QQ"
+        wb.save(output_file_path)  # 保存工作簿
+        existed_company_names = []
+    else:
+        logger.info('已发现产出文件，将直接读取')
+        existed_company_names = set()
+        for tab in ('手机', '座机', '邮箱', 'QQ'):
+            # for tab in ('手机',):
+            tmp_df = pd.read_excel(output_file_path, sheet_name=tab, header=None)
+            if len(tmp_df) > 0:
+                existed_company_names = existed_company_names | set([v.split('|')[0] for v in tmp_df[0]])
+        logger.info(f'已存在 {len(existed_company_names)} 家公司')
 
     # Step1：首次访问并保存Cookies
     logger.info("\n----- 第一阶段：首次访问并保存Cookies -----")
@@ -275,12 +297,12 @@ def demo_workflow():
     # chrome_driver_path = './static/chromedriver-win64/chromedriver.exe'
     # if crawler.start_browser(chrome_driver_path=chrome_driver_path):
     crawler.start_browser()
-    crawler.navigate_to(target_url) # 1-1: 访问网站
-    input("请在浏览器中执行任何需要的操作（如登录），完成后按Enter键继续...") # 1-2: 提示用户可以手动登录（如果需要）
-    crawler.take_screenshot("static/complete_example/before_save_cookies.png") # 1-3: 截图记录当前状态
-    crawler.save_cookies() # 1-4: 保存Cookies
+    crawler.navigate_to(target_url)  # 1-1: 访问网站
+    input("请在浏览器中执行任何需要的操作（如登录），完成后按Enter键继续...")  # 1-2: 提示用户可以手动登录（如果需要）
+    crawler.take_screenshot("static/complete_example/before_save_cookies.png")  # 1-3: 截图记录当前状态
+    crawler.save_cookies()  # 1-4: 保存Cookies
     # crawler.close_browser() # 1-5: 关闭浏览器
-    
+
     # Step2：使用保存的Cookies重新访问
     new_crawler = crawler
     # logger.info("\n----- 第二阶段：使用保存的Cookies重新访问 -----")
@@ -298,43 +320,20 @@ def demo_workflow():
     #         input("验证完成后按Enter键继续...")
     # except Exception as e:
     #     logger.error(f"加载Cookies失败: {str(e)}")
-    
-    # Step3: 顺序爬取公司信息
-    # try:
-    # 2. 创建结果文件（如存在则直接读取）
-    # output_file_path = os.path.join(os.path.dirname(__file__),'static','complete_example','output.xlsx')
-    output_file_path = 'static/complete_example/output.xlsx'
-    print(f'产出文件路径: {output_file_path}')
-    if not os.path.exists(output_file_path):
-        logger.info('未发现产出文件，将新建')
-        wb = Workbook()
-        ws_phone = wb.active
-        ws_phone.title = "手机"
-        ws_tel = wb.create_sheet("座机") # 创建第二个sheet "邮箱"
-        ws_email = wb.create_sheet("邮箱") # 创建第二个sheet "邮箱"
-        ws_qq = wb.create_sheet("QQ") # 创建第三个sheet "QQ"
-        wb.save(output_file_path) # 保存工作簿
-        existed_company_names = []
-    else:
-        logger.info('已发现产出文件，将直接读取')
-        existed_company_names = set()
-        # for tab in ('手机','座机','邮箱','QQ'):
-        for tab in ('手机',):
-            tmp_df = pd.read_excel(output_file_path, sheet_name=tab, header=None)
-            if len(tmp_df)>0:
-                existed_company_names = existed_company_names | set([v.split('|')[0] for v in tmp_df[0]])
-        logger.info(f'已存在 {len(existed_company_names)} 家公司')
 
+    # Step3: 顺序爬取公司信息
     # 3. 顺序遍历爬取
     for i, company_name in enumerate(company_names):
-        # if i<246: continue
+        if i < 3750: continue
         if company_name in existed_company_names:
             logger.info(f'公司 {company_name} 已存在，跳过')
             continue
-        logger.info(f'开始处理公司 {i+1}/{len(company_names)}: {company_name}')
+        logger.info(f'开始处理公司 {i + 1}/{len(company_names)}: {company_name}')
         # 3-1. 搜索公司
-        search_input = new_crawler.driver.find_element(By.CSS_SELECTOR, "div.search-input-wrap > section > div > div > div > div > input")
-        search_btn = new_crawler.driver.find_element(By.CSS_SELECTOR, "div.search-input-wrap > section > div > button.el-button.el-button--primary.search-btn")
+        search_input = new_crawler.driver.find_element(By.CSS_SELECTOR,
+                                                       "div.search-input-wrap > section > div > div > div > div > input")
+        search_btn = new_crawler.driver.find_element(By.CSS_SELECTOR,
+                                                     "div.search-input-wrap > section > div > button.el-button.el-button--primary.search-btn")
 
         search_input.clear()
         search_input.send_keys(company_name)
@@ -343,26 +342,28 @@ def demo_workflow():
         time.sleep(3)
 
         # 搜索结果为0，直接跳过并爬取下一个
-        search_res_num = new_crawler.driver.find_element(By.CSS_SELECTOR,'div.middle-bar > div.info > span:nth-child(1) > em')
+        search_res_num = new_crawler.driver.find_element(By.CSS_SELECTOR,
+                                                         'div.middle-bar > div.info > span:nth-child(1) > em')
         if search_res_num.text == '0':
             continue
         # 如果没有联系方式，直接跳过并爬取下一个
-        contact_num_items = new_crawler.driver.find_elements(By.CSS_SELECTOR,'div.contact > span')
+        contact_num_items = new_crawler.driver.find_elements(By.CSS_SELECTOR, 'div.contact > span')
         contact_nums = [int(i.text) for i in contact_num_items]
-        if len(contact_nums)==4 and sum(contact_nums)==0:
+        if len(contact_nums) >= 4 and sum(contact_nums[:4]) == 0:
             continue
 
-        # 3-3. 截图记录当前状态, 点开公司详情页
+        # 3-3. 点开公司详情页
         # new_crawler.take_screenshot(f"static/complete_example/{company_name.replace(' ','_')}.png")
         company_btns = new_crawler.driver.find_elements(By.CSS_SELECTOR, "h6.company-name")
         is_find_btn = 0
         for btn in company_btns:
-            dealed_company_name = company_name.replace('（','(').replace('）',')')
+            dealed_company_name = company_name.replace('（', '(').replace('）', ')')
+            # 相等才继续
             if btn.text.strip() == company_name or btn.text.strip() == dealed_company_name:
                 is_find_btn = 1
                 btn.click()
                 break
-        if is_find_btn == 0: # 没有搜索到这个公司
+        if is_find_btn == 0:  # 没有搜索到这个公司
             continue
         time.sleep(2)
 
@@ -370,16 +371,17 @@ def demo_workflow():
         check_btns = new_crawler.driver.find_elements(By.CSS_SELECTOR, "div.check > button")
         contact_cards = new_crawler.driver.find_elements(By.CSS_SELECTOR, "div.contact-item > div > div.p")
         # 等待加载
-        while len(check_btns)==0 and len(contact_cards)==0:
+        while len(check_btns) == 0 and len(contact_cards) == 0:
             time.sleep(2)
             check_btns = new_crawler.driver.find_elements(By.CSS_SELECTOR, "div.check > button")
             contact_cards = new_crawler.driver.find_elements(By.CSS_SELECTOR, "div.contact-item > div > div.p")
         # 联系方式直接可见
         first_contact_text = contact_cards[0].text.strip()
-        if len(contact_cards)>0 and len(first_contact_text)>0 and '*' not in first_contact_text:
+        if len(contact_cards) > 0 and len(first_contact_text) > 0 and '*' not in first_contact_text:
             pass
         # 需要点击“立即查看”按钮
-        elif len(check_btns)>0 and check_btns[0].text.strip() == "立即查看":
+        elif len(check_btns) > 0 and check_btns[0].text.strip() == "立即查看":
+            btn = check_btns[0]
             # 滑动到对应按钮可见
             new_crawler.driver.execute_script("arguments[0].scrollIntoView(false);", btn)
             time.sleep(1)
@@ -392,10 +394,14 @@ def demo_workflow():
             while len(check_btns) == 0:
                 time.sleep(2)
                 check_btns = new_crawler.driver.find_elements(By.CSS_SELECTOR, "div.check > button")
-            # 确定联系方式可见
-            while check_btns[0].text != "空错号检测":
-                time.sleep(2)
-                check_btns = new_crawler.driver.find_elements(By.CSS_SELECTOR, "div.check > button")
+                # 确定联系方式已明文可见
+                if len(check_btns) > 0:
+                    contact_cards = new_crawler.driver.find_elements(By.CSS_SELECTOR, "div.contact-item > div > div.p")
+                    check_btn_text = check_btns[0].text
+                    contact_cards_text = contact_cards[0].text.strip()
+                    if check_btn_text == "空错号检测" and '*' not in contact_cards_text:
+                        time.sleep(1)
+                        break
         # 未知场景, 报错并hold
         else:
             new_crawler.driver.execute_script("alert('未知场景');")
@@ -406,9 +412,23 @@ def demo_workflow():
         # 3-4. 保存网页源代码，解析公司联系信息
         page_source = new_crawler.driver.page_source
         soup = BeautifulSoup(page_source, "html.parser")
-        modules = soup.select("#app > div > div.el-overlay.popMenu-box > div > section > div.container > div.coding-box > div > div")
+        modules = soup.select(
+            "#app > div > div.el-overlay.popMenu-box > div > section > div.container > div.coding-box > div > div")
+
+        m = modules[0]
+        i = m.select('div.contact-item')[0].get_text(separator='|')
+        while '****' in i:
+            print('爬取数据中存在****，等待3秒后重新爬取')
+            time.sleep(3)
+            page_source = new_crawler.driver.page_source
+            soup = BeautifulSoup(page_source, "html.parser")
+            modules = soup.select(
+                "#app > div > div.el-overlay.popMenu-box > div > section > div.container > div.coding-box > div > div")
+            m = modules[0]
+            i = m.select('div.contact-item')[0].get_text(separator='|')
+
         result_dict = {}
-        for m in modules:
+        for m in modules:  # '手机', '座机', '邮箱', 'QQ'
             title_text = m.select_one('div.list-item-title').get_text()
             title_class = title_text.split(' ')[0]
             item_text_lst = [t.get_text(separator='|') for t in m.select('div.contact-item')]
@@ -418,20 +438,24 @@ def demo_workflow():
         wb = load_workbook(output_file_path)
         for n in ('手机', '座机', '邮箱', 'QQ'):
             ws = wb[n]
-            for item in result_dict.get(n,[]):
+            for item in result_dict.get(n, []):
                 if isinstance(item, str):
                     ws.append([item])
         wb.save(output_file_path)
         time.sleep(2)
         # 3-6. 返回搜索页
-        backhome_btn = new_crawler.driver.find_element(By.CSS_SELECTOR, "div.el-overlay.popMenu-box > div > section > div.pack-up")
+        backhome_btn = new_crawler.driver.find_element(By.CSS_SELECTOR,
+                                                       "div.el-overlay.popMenu-box > div > section > div.pack-up")
         backhome_btn.click()
         time.sleep(1)
     # except Exception as e:
     #     logger.error(f"顺序爬取公司信息失败: {str(e)}")
     #     time.sleep(10)
 
-    logger.info("\n===== 爬虫流程演示完成 =====")
+def demo_workflow():
+    """ 完整的爬虫工作流程 """
+    company_names = get_company_names()
+    launch_xunkebao_and_crawl(company_names, output_file_path = 'static/complete_example/output.xlsx')
 
 if __name__ == "__main__":
     # 运行演示流程
